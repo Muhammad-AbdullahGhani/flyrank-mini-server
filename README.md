@@ -127,9 +127,30 @@ We implemented a web crawler that extracts data from a practice website to build
 
 ---
 
+## Milestone 6: Real Authentication & Tenant Isolation
+
+We added user identity management and security layers to protect client resources. Every database operation now runs within the context of the currently authenticated user, guaranteeing complete tenant data isolation.
+
+### Security Implementation
+1. **Password Hashing**: Uses the built-in, secure `crypto.scrypt` algorithm to hash passwords with a unique salt for each user before storing them, safeguarding credentials against leakages.
+2. **JWT Session Management**: Registers token issuance and validation using `jsonwebtoken`. Logged-in users receive a JWT signed with a private key (`JWT_SECRET`).
+3. **Route Protections (401 Unauthorized)**: Checks the `Authorization` header (`Bearer <token>`) on `/todos` and `/reports` endpoints. Missing or invalid signatures reject requests immediately.
+4. **Tenant Data Scoping (403 Forbidden)**:
+   - Database operations (inserting, deleting, selecting) filter by `user_id` context.
+   - Cross-user actions (e.g. attempting to fetch or delete another tenant's todos, or checking/downloading another user's compiled PDF report) fail with an honest `403 Forbidden` response.
+   - Background worker processes dynamically limit data aggregation queries to the requesting user ID.
+
+### Endpoints
+- **POST /auth/register**: Registers a new username/password pair.
+- **POST /auth/login**: Authenticates username/password and issues a JWT token.
+- **GET /todos** & **POST /todos** & **DELETE /todos/:id**: Enforces JWT validation and filters operations strictly to the user's scope.
+- **POST /reports** & **GET /reports/status/:jobId** & **GET /reports/download/:jobId**: Enforces JWT validation and confines background jobs and PDF downloads strictly to the job owner's scope.
+
+---
+
 ## Verification & Testing
 
-To run the verification test suites locally (which verify the Database repositories, AI retries/caching, background PDF reports, and polite web scraper):
+To run the verification test suites locally (which verify the Database repositories, AI retries/caching, background PDF reports, polite web scraper, and user authentication/isolation):
 
 ```bash
 # Verify DB repositories
@@ -143,4 +164,7 @@ node scratch/test-reports.js
 
 # Verify Web Scraper (robots.txt, delay, HTML parsing, structured saving)
 node scratch/test-scraper.js
+
+# Verify Authentication & Tenant Isolation (hashing, JWT, cross-user block, scoped reports)
+node scratch/test-auth.js
 ```

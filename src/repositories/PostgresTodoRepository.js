@@ -6,27 +6,27 @@ class PostgresTodoRepository {
     this.pool = pool;
   }
 
-  async getAll() {
-    const result = await this.pool.query('SELECT * FROM todos ORDER BY id ASC');
+  async getAll(userId) {
+    const result = await this.pool.query('SELECT * FROM todos WHERE user_id = $1 ORDER BY id ASC', [parseInt(userId)]);
     return result.rows;
   }
 
-  async getById(id) {
-    const result = await this.pool.query('SELECT * FROM todos WHERE id = $1', [parseInt(id)]);
+  async getById(id, userId) {
+    const result = await this.pool.query('SELECT * FROM todos WHERE id = $1 AND user_id = $2', [parseInt(id), parseInt(userId)]);
     if (result.rows.length === 0) return null;
     return result.rows[0];
   }
 
-  async create(title) {
+  async create(title, userId) {
     const result = await this.pool.query(
-      'INSERT INTO todos (title, completed) VALUES ($1, false) RETURNING *',
-      [title]
+      'INSERT INTO todos (title, completed, user_id) VALUES ($1, false, $2) RETURNING *',
+      [title, parseInt(userId)]
     );
     return result.rows[0];
   }
 
-  async delete(id) {
-    const result = await this.pool.query('DELETE FROM todos WHERE id = $1', [parseInt(id)]);
+  async delete(id, userId) {
+    const result = await this.pool.query('DELETE FROM todos WHERE id = $1 AND user_id = $2', [parseInt(id), parseInt(userId)]);
     return result.rowCount > 0;
   }
 }

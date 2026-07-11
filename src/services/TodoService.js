@@ -3,25 +3,29 @@ class TodoService {
     this.todoRepository = todoRepository;
   }
 
-  async getAllTodos() {
-    return this.todoRepository.getAll();
+  async getAllTodos(userId) {
+    if (!userId) throw new Error('User ID is required');
+    return this.todoRepository.getAll(userId);
   }
 
-  async getTodoById(id) {
+  async getTodoById(id, userId) {
     if (!id) throw new Error('ID is required');
-    return this.todoRepository.getById(id);
+    if (!userId) throw new Error('User ID is required');
+    return this.todoRepository.getById(id, userId);
   }
 
-  async createTodo(title) {
+  async createTodo(title, userId) {
     if (!title || typeof title !== 'string' || title.trim() === '') {
       throw new Error('Title is required and must be a non-empty string');
     }
-    return this.todoRepository.create(title.trim());
+    if (!userId) throw new Error('User ID is required');
+    return this.todoRepository.create(title.trim(), userId);
   }
 
-  async deleteTodo(id) {
+  async deleteTodo(id, userId) {
     if (!id) throw new Error('ID is required');
-    return this.todoRepository.delete(id);
+    if (!userId) throw new Error('User ID is required');
+    return this.todoRepository.delete(id, userId);
   }
 }
 

@@ -20,11 +20,13 @@ class ReportService {
     }
 
     // Schedule task for stretch goal (Runs every 10 minutes by default)
+    // Note: In production isolation, scheduled reports would run per-tenant or aggregate globally.
+    // For local internship validation, it aggregates mock tenant '1'.
     const cronSchedule = process.env.REPORT_CRON || '*/10 * * * *';
     cron.schedule(cronSchedule, async () => {
       console.log(`[Scheduler] Triggering scheduled report generation (Cron: "${cronSchedule}")...`);
       try {
-        const job = await this.createReportJob();
+        const job = await this.createReportJob(1); // default test tenant ID 1
         console.log(`[Scheduler] Successfully enqueued scheduled job: ${job.id}`);
       } catch (err) {
         console.error('[Scheduler] Failed to trigger scheduled job:', err.message);
@@ -35,10 +37,13 @@ class ReportService {
   /**
    * Enqueues a new PDF report generation job
    */
-  async createReportJob() {
+  async createReportJob(userId) {
+    if (!userId) throw new Error('User ID is required for enqueuing a report');
+
     const jobId = crypto.randomUUID();
     const jobData = {
       id: jobId,
+      userId: parseInt(userId),
       status: 'pending',
       createdAt: new Date().toISOString(),
       completedAt: null,
@@ -54,7 +59,7 @@ class ReportService {
       this.inMemoryQueue.push(jobId);
     }
 
-    console.log(`[Queue] Enqueued job: ${jobId}`);
+    console.log(`[Queue] Enqueued job: ${jobId} for User: ${userId}`);
     
     // Trigger the worker loop asynchronously
     this.triggerWorker();
@@ -123,11 +128,15 @@ class ReportService {
         break;
       }
 
-      console.log(`[Worker] Started processing job: ${jobId}`);
+      const jobData = await this.getJobStatus(jobId);
+      if (!jobData) continue;
+
+      const userId = jobData.userId;
+      console.log(`[Worker] Started processing job: ${jobId} for User: ${userId}`);
       await this.updateJob(jobId, { status: 'processing' });
 
       try {
-        // 1. Gather aggregated statistics from DB or RAM
+        // 1. Gather aggregated statistics from DB or RAM scoped to User
         let stats = {};
         if (this.dbPool) {
           const aggResult = await this.dbPool.query(`
@@ -136,8 +145,9 @@ class ReportService {
               COALESCE(SUM(CASE WHEN completed THEN 1 ELSE 0 END), 0)::int as completed,
               COALESCE(SUM(CASE WHEN NOT completed THEN 1 ELSE 0 END), 0)::int as pending
             FROM todos
-          `);
-          const todosResult = await this.dbPool.query('SELECT * FROM todos ORDER BY id ASC');
+            WHERE user_id = $1
+          `, [userId]);
+          const todosResult = await this.dbPool.query('SELECT * FROM todos WHERE user_id = $1 ORDER BY id ASC', [userId]);
           const row = aggResult.rows[0];
           const total = row.total;
           stats = {
@@ -148,7 +158,7 @@ class ReportService {
             todos: todosResult.rows
           };
         } else {
-          const todos = await this.todoService.getAllTodos();
+          const todos = await this.todoService.getAllTodos(userId);
           const total = todos.length;
           const completed = todos.filter(t => t.completed).length;
           const pending = total - completed;
@@ -172,7 +182,7 @@ class ReportService {
         doc.fillColor('#0f172a').fontSize(24).text('FlyRank Todo Performance Report', { align: 'center' });
         doc.moveDown(0.2);
         doc.fillColor('#475569').fontSize(10).text(`Job Identifier: ${jobId}`, { align: 'center' });
-        doc.text(`Generated: ${new Date().toLocaleString()}`, { align: 'center' });
+        doc.text(`Tenant ID: ${userId} | Generated: ${new Date().toLocaleString()}`, { align: 'center' });
         doc.moveDown(2);
 
         // Executive Summary Container Box
