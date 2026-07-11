@@ -8,6 +8,7 @@ const InMemoryTodoRepository = require('./src/repositories/InMemoryTodoRepositor
 const PostgresTodoRepository = require('./src/repositories/PostgresTodoRepository');
 const TodoService = require('./src/services/TodoService');
 const AIService = require('./src/services/AIService');
+const ReportService = require('./src/services/ReportService');
 
 // Initialize repository based on environment
 let repository;
@@ -37,6 +38,8 @@ if (process.env.REDIS_URL) {
     .then(() => console.log('Connected to Redis successfully.'))
     .catch(err => console.error('Failed to connect to Redis:', err.message));
 }
+
+const reportService = new ReportService(todoService, dbPool, redisClient);
 
 // Helper function to read request body
 const getRequestBody = (req) => {
@@ -152,6 +155,51 @@ const server = http.createServer(async (req, res) => {
       const result = await AIService.classifyFeedback(text);
       res.writeHead(200);
       return res.end(JSON.stringify(result));
+    }
+
+    // 8. POST /reports - Enqueue a background PDF report job
+    if (pathname === '/reports' && req.method === 'POST') {
+      const job = await reportService.createReportJob();
+      res.writeHead(202);
+      return res.end(JSON.stringify({ jobId: job.id, status: job.status }));
+    }
+
+    // 9. GET /reports/status/:jobId - Check progress of a report job
+    if (pathname.startsWith('/reports/status/') && req.method === 'GET') {
+      const jobId = pathname.substring(16);
+      if (!jobId) {
+        res.writeHead(400);
+        return res.end(JSON.stringify({ error: 'Job ID is required' }));
+      }
+
+      const job = await reportService.getJobStatus(jobId);
+      if (!job) {
+        res.writeHead(404);
+        return res.end(JSON.stringify({ error: 'Job not found' }));
+      }
+
+      res.writeHead(200);
+      return res.end(JSON.stringify(job));
+    }
+
+    // 10. GET /reports/download/:jobId - Stream/download the generated PDF report
+    if (pathname.startsWith('/reports/download/') && req.method === 'GET') {
+      const jobId = pathname.substring(18);
+      const fs = require('fs');
+      const path = require('path');
+      const filePath = path.join(__dirname, 'public/reports', `${jobId}.pdf`);
+
+      if (!fs.existsSync(filePath)) {
+        res.writeHead(404);
+        return res.end(JSON.stringify({ error: 'Report PDF not found or still generating' }));
+      }
+
+      res.writeHead(200, {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="todo_report_${jobId}.pdf"`
+      });
+      const stream = fs.createReadStream(filePath);
+      return stream.pipe(res);
     }
 
     // Catch-all 404

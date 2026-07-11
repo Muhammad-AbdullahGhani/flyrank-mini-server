@@ -11,6 +11,8 @@
   "license": "ISC",
   "dependencies": {
     "dotenv": "^17.4.2",
+    "node-cron": "^4.6.0",
+    "pdfkit": "^0.19.1",
     "pg": "^8.22.0",
     "redis": "^6.1.0",
     "zod": "^4.4.3"
