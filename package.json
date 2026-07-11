@@ -1,0 +1,12 @@
+{
+  "name": "flyrank-mini-server",
+  "version": "1.0.0",
+  "description": "Minimal backend server with two endpoints",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
