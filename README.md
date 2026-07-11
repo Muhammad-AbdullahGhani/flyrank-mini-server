@@ -90,9 +90,29 @@ curl http://localhost:3000/status
 
 ---
 
+## Milestone 4 (Week 4): PDF Report Generator
+
+We implemented a background job processing pipeline to generate PDF performance reports on-demand and on a schedule.
+
+### Pipeline Details
+1. **Background Job Queue**: Uses Redis Lists (`LPUSH`/`RPOP`) to queue and manage job state transitions (`pending` -> `processing` -> `completed` / `failed`) with an in-memory array fallback if Redis is not configured.
+2. **On-Demand & Scheduled Jobs**:
+   - **On-Demand**: Triggered via `POST /reports` which enqueues a job and instantly returns a `202 Accepted` status with the `jobId`.
+   - **Scheduled (Stretch)**: Runs automated reports periodically using `node-cron`. The schedule can be configured in `.env` via `REPORT_CRON` (defaults to every 10 minutes).
+3. **SQL Aggregation**: Performs analytical queries directly on Postgres (e.g. counting totals, completion rates, and sorting items) with a clean JS array fallback in memory mode.
+4. **PDF rendering**: Renders structured reports using `pdfkit` featuring styling, header layout, stats summary boxes, and a bulleted list of tasks.
+5. **Streaming Artifacts**: Downloads are served using streams (`fs.createReadStream().pipe(res)`), guaranteeing that large PDF files are never buffered in server RAM.
+
+### Endpoints
+- **POST /reports**: Trigger a report job. Returns `202 Accepted` with a `jobId`.
+- **GET /reports/status/:jobId**: Check job progress. Returns status, creation timestamp, and completion download link.
+- **GET /reports/download/:jobId**: Streams and downloads the compiled PDF report.
+
+---
+
 ## Verification & Testing
 
-To run the verification test suites locally (which verify both the Database repositories and the AI retry/caching/error handling logic with mock bindings):
+To run the verification test suites locally (which verify the Database repositories, AI retries/caching, and background PDF report generation pipelines):
 
 ```bash
 # Verify DB repositories
@@ -100,4 +120,7 @@ node scratch/test-db.js
 
 # Verify AI integration (timeouts, retries, cost logging, schema validations, caching)
 node scratch/test-ai.js
+
+# Verify PDF Report Generator pipeline (queue, worker, PDF rendering, filesystem)
+node scratch/test-reports.js
 ```
