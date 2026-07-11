@@ -16,6 +16,7 @@ const AuthService = require('./src/services/AuthService');
 const ReportService = require('./src/services/ReportService');
 const AIService = require('./src/services/AIService');
 const ScraperService = require('./src/services/ScraperService');
+const AIJobService = require('./src/services/AIJobService');
 
 // Initialize database pool if configured
 let dbPool = null;
@@ -56,6 +57,7 @@ if (process.env.REDIS_URL) {
 }
 
 const reportService = new ReportService(todoService, dbPool, redisClient);
+const aiJobService = new AIJobService(redisClient);
 
 // Helper function to read request body
 const getRequestBody = (req) => {
@@ -283,7 +285,7 @@ const server = http.createServer(async (req, res) => {
     // AI Feature & Scraper Routes (Public/Admin endpoints)
     // --------------------------------------------------------
     
-    // POST /ai/classify
+    // POST /ai/classify - Enqueue feedback classification background job
     if (pathname === '/ai/classify' && req.method === 'POST') {
       const body = await getRequestBody(req);
       const text = body.text;
@@ -292,9 +294,27 @@ const server = http.createServer(async (req, res) => {
         return res.end(JSON.stringify({ error: 'Text field is required and must be a non-empty string' }));
       }
 
-      const result = await AIService.classifyFeedback(text);
+      const job = await aiJobService.createJob(text);
+      res.writeHead(202);
+      return res.end(JSON.stringify({ jobId: job.id, status: job.status }));
+    }
+
+    // GET /ai/classify/status/:jobId - Poll status of the classification job
+    if (pathname.startsWith('/ai/classify/status/') && req.method === 'GET') {
+      const jobId = pathname.substring(20);
+      if (!jobId) {
+        res.writeHead(400);
+        return res.end(JSON.stringify({ error: 'Job ID is required' }));
+      }
+
+      const job = await aiJobService.getJobStatus(jobId);
+      if (!job) {
+        res.writeHead(404);
+        return res.end(JSON.stringify({ error: 'Job not found' }));
+      }
+
       res.writeHead(200);
-      return res.end(JSON.stringify(result));
+      return res.end(JSON.stringify(job));
     }
 
     // POST /scraper/run
