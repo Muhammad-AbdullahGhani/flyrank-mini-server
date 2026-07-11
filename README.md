@@ -148,9 +148,26 @@ We added user identity management and security layers to protect client resource
 
 ---
 
+## Milestone 7 (Week 5): AI Background Job Queue
+
+We transitioned the slow-running AI feedback classification function from a synchronous request-response call into a background job pipeline.
+
+### Job System Specifications
+1. **Instant Response**: `POST /ai/classify` immediately validates client input, creates a background job with a unique `jobId`, queues it in Redis (with a RAM fallback), and returns `202 Accepted` with `status: "pending"`.
+2. **Idempotency Guard**: Before a worker processes a job, it asserts that the status is not already `completed`. If it is, the job is skipped to avoid double runs.
+3. **Smart Retries**: If the AI API fails, the worker catches the error and retries the job up to 3 times, restoring its state to pending and re-queuing it.
+4. **Critical Alerting**: If a job fails permanently after exhausting all 3 attempts, the worker raises a critical console alert (`[ALERT] AI Classification Job ... FAILED permanently`) and flags the job status as `failed` with `alerted: true` in storage.
+5. **Polling Status**: Exposes `GET /ai/classify/status/:jobId` to check progress. Once completed, it returns the final schema-validated structured response.
+
+### Endpoints
+- **POST /ai/classify**: Queues user text for classification. Returns `202 Accepted` with a `jobId`.
+- **GET /ai/classify/status/:jobId**: Returns job progress, attempts count, error messages, and final results.
+
+---
+
 ## Verification & Testing
 
-To run the verification test suites locally (which verify the Database repositories, AI retries/caching, background PDF reports, polite web scraper, and user authentication/isolation):
+To run the verification test suites locally (which verify the Database repositories, AI retries/caching, background PDF reports, polite web scraper, user authentication/isolation, and AI background job queue):
 
 ```bash
 # Verify DB repositories
@@ -167,4 +184,7 @@ node scratch/test-scraper.js
 
 # Verify Authentication & Tenant Isolation (hashing, JWT, cross-user block, scoped reports)
 node scratch/test-auth.js
+
+# Verify AI Background Job worker (instant 202, idempotency, retries, console alerts)
+node scratch/test-ai-job.js
 ```
