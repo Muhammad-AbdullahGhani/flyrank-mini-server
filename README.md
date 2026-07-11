@@ -110,9 +110,26 @@ We implemented a background job processing pipeline to generate PDF performance 
 
 ---
 
+## Milestone 5 (Week 4): The Polite Scraper
+
+We implemented a web crawler that extracts data from a practice website to build a structured JSON corpus, while enforcing strict bot politeness guidelines.
+
+### Scraper Pipeline
+1. **Identification**: Sends a custom `User-Agent` string with contact details to allow site administrators to identify or contact the runner of the bot.
+2. **Robots.txt Adherence**: Dynamically fetches and parses the target site's `/robots.txt` file on startup. It extracts all disallowed routes and obeys the specific `Crawl-delay` constraint.
+3. **Pacing / Rate Limiting**: Introduces an asynchronous sleep delay between successive page fetches based on the parsed crawl delay (or a default 1000ms pause) to avoid server load.
+4. **Cheerio Parsing**: Parses target elements (quotes, authors, tags) cleanly, strips excessive formatting, and maps them to a consistent data structure.
+5. **Structured Storage**: Saves results as a clean JSON database at [data/scraped_quotes.json](file:///C:/Users/i222683AbdullahGhani/Desktop/flyrank/data/scraped_quotes.json), serving as the foundational corpus for semantic search and RAG indexing.
+
+### Endpoints
+- **POST /scraper/run**: Triggers the crawler run (supports an optional `maxPages` parameter in JSON body, defaults to 3).
+- **GET /scraper/quotes**: Returns the stored scraped JSON data array directly.
+
+---
+
 ## Verification & Testing
 
-To run the verification test suites locally (which verify the Database repositories, AI retries/caching, and background PDF report generation pipelines):
+To run the verification test suites locally (which verify the Database repositories, AI retries/caching, background PDF reports, and polite web scraper):
 
 ```bash
 # Verify DB repositories
@@ -123,4 +140,7 @@ node scratch/test-ai.js
 
 # Verify PDF Report Generator pipeline (queue, worker, PDF rendering, filesystem)
 node scratch/test-reports.js
+
+# Verify Web Scraper (robots.txt, delay, HTML parsing, structured saving)
+node scratch/test-scraper.js
 ```
