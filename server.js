@@ -9,6 +9,7 @@ const PostgresTodoRepository = require('./src/repositories/PostgresTodoRepositor
 const TodoService = require('./src/services/TodoService');
 const AIService = require('./src/services/AIService');
 const ReportService = require('./src/services/ReportService');
+const ScraperService = require('./src/services/ScraperService');
 
 // Initialize repository based on environment
 let repository;
@@ -200,6 +201,22 @@ const server = http.createServer(async (req, res) => {
       });
       const stream = fs.createReadStream(filePath);
       return stream.pipe(res);
+    }
+
+    // 11. POST /scraper/run - Run the polite scraper
+    if (pathname === '/scraper/run' && req.method === 'POST') {
+      const body = await getRequestBody(req).catch(() => ({}));
+      const maxPages = parseInt(body.maxPages) || 3;
+      const result = await ScraperService.runScraper(maxPages);
+      res.writeHead(200);
+      return res.end(JSON.stringify(result));
+    }
+
+    // 12. GET /scraper/quotes - Retrieve the saved scraped quotes
+    if (pathname === '/scraper/quotes' && req.method === 'GET') {
+      const quotes = ScraperService.getSavedQuotes();
+      res.writeHead(200);
+      return res.end(JSON.stringify(quotes));
     }
 
     // Catch-all 404
