@@ -7,6 +7,7 @@ const { createClient } = require('redis');
 const InMemoryTodoRepository = require('./src/repositories/InMemoryTodoRepository');
 const PostgresTodoRepository = require('./src/repositories/PostgresTodoRepository');
 const TodoService = require('./src/services/TodoService');
+const AIService = require('./src/services/AIService');
 
 // Initialize repository based on environment
 let repository;
@@ -137,6 +138,20 @@ const server = http.createServer(async (req, res) => {
 
       res.writeHead(200);
       return res.end(JSON.stringify({ message: 'Todo deleted successfully', id }));
+    }
+
+    // 7. POST /ai/classify - Classify feedback message (AI API feature)
+    if (pathname === '/ai/classify' && req.method === 'POST') {
+      const body = await getRequestBody(req);
+      const text = body.text;
+      if (!text || typeof text !== 'string' || text.trim() === '') {
+        res.writeHead(400);
+        return res.end(JSON.stringify({ error: 'Text field is required and must be a non-empty string' }));
+      }
+
+      const result = await AIService.classifyFeedback(text);
+      res.writeHead(200);
+      return res.end(JSON.stringify(result));
     }
 
     // Catch-all 404
